@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dragon-postgres
+    environment:
+      POSTGRES_DB: dragon_db
+      POSTGRES_USER: dragon_user
+      POSTGRES_PASSWORD: dragon_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dragon_user -d dragon_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: dragon-backend
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://dragon_user:dragon_password@postgres:5432/dragon_db
+      JWT_SECRET: dragon-secret-key-change-in-production
+      JWT_EXPIRATION: 3600
+      GRAPHQL_PLAYGROUND: true
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+    command: npm run start:dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dragon-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/graphql
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+    command: npm run dev
+
+volumes:
+  postgres_data:

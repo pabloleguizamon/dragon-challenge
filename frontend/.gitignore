@@ -1,9 +1,8 @@
-.idea
-.vscode
+.next
+out
 node_modules
+.env.local
+.env
 dist
 coverage
-.env
-.env.local
 .DS_Store
-*.log
