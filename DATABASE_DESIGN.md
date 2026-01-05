@@ -1,172 +1,317 @@
-# Database Design Documentation
+# 🗄️ Database Schema Diagram
 
-## 🗄️ Database Schema
-
-### Entity Relationship Diagram (ERD)
+## Entity Relationship Diagram (ERD)
 
 ```
-┌─────────────────┐        ┌──────────────────┐        ┌─────────────────┐
-│     Users       │        │    Products      │        │     Orders      │
-├─────────────────┤        ├──────────────────┤        ├─────────────────┤
-│ id (PK)         │◄───────│                  │◄───────│ id (PK)         │
-│ email (UNIQUE)  │    1:N │                  │    1:N │ userId (FK)     │
-│ password        │        │                  │        │ createdAt       │
-│ firstName       │        │                  │        │ updatedAt       │
-│ lastName        │        │                  │        │ total           │
-│ createdAt       │        │                  │        │ status          │
-│ updatedAt       │        │                  │        │                 │
-└─────────────────┘        └──────────────────┘        └─────────────────┘
-                                    ▲
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              USERS TABLE                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│ PK │ id              │ UUID                                              │
+│    │ email           │ VARCHAR(255) UNIQUE NOT NULL                      │
+│    │ password        │ VARCHAR(255) NOT NULL (hashed with bcrypt)        │
+│    │ firstName       │ VARCHAR(255)                                      │
+│    │ lastName        │ VARCHAR(255)                                      │
+│    │ role            │ ENUM('USER', 'ADMIN') DEFAULT 'USER'              │
+│    │ createdAt       │ TIMESTAMP DEFAULT NOW()                           │
+└─────────────────────────────────────────────────────────────────────────┘
                                     │
-                                    │ M:N
+                                    │ 1
                                     │
-                           ┌─────────────────┐
-                           │  OrderItems     │
-                           ├─────────────────┤
-                           │ id (PK)         │
-                           │ orderId (FK)    │
-                           │ productId (FK)  │
-                           │ quantity        │
-                           │ price           │
-                           └─────────────────┘
+                                    │
+                                    │ *
+┌─────────────────────────────────────────────────────────────────────────┐
+│                             ORDERS TABLE                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│ PK │ id              │ UUID                                              │
+│ FK │ userId          │ UUID NOT NULL → users.id                          │
+│    │ total           │ DECIMAL(10,2) NOT NULL                            │
+│    │ status          │ ENUM('PENDING','PROCESSING',                      │
+│    │                 │      'COMPLETED','CANCELLED')                     │
+│    │                 │ DEFAULT 'PENDING'                                 │
+│    │ createdAt       │ TIMESTAMP DEFAULT NOW()                           │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ 1
+                                    │
+                                    │
+                                    │ *
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          ORDER_ITEMS TABLE                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│ PK │ id              │ UUID                                              │
+│ FK │ orderId         │ UUID NOT NULL → orders.id (CASCADE)               │
+│ FK │ productId       │ UUID NOT NULL → products.id                       │
+│    │ quantity        │ INTEGER NOT NULL                                  │
+│    │ price           │ DECIMAL(10,2) NOT NULL (price snapshot)           │
+│    │ subtotal        │ DECIMAL(10,2) NOT NULL                            │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ *
+                                    │
+                                    │
+                                    │ 1
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           PRODUCTS TABLE                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│ PK │ id              │ UUID                                              │
+│    │ name            │ VARCHAR(255) NOT NULL                             │
+│    │ description     │ TEXT NOT NULL                                     │
+│    │ price           │ DECIMAL(10,2) NOT NULL                            │
+│    │ stock           │ INTEGER DEFAULT 0                                 │
+│    │ imageUrl        │ VARCHAR(500) NULLABLE                             │
+│    │ isActive        │ BOOLEAN DEFAULT TRUE                              │
+│    │ createdAt       │ TIMESTAMP DEFAULT NOW()                           │
+│    │ updatedAt       │ TIMESTAMP DEFAULT NOW()                           │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+## Relationships
 
-## 📊 Table Definitions
+### User → Orders (One-to-Many)
+- **Relationship:** One user can have multiple orders
+- **Foreign Key:** `orders.userId` references `users.id`
+- **Cardinality:** 1:N
+- **Delete Behavior:** Restrict (cannot delete user with existing orders)
+
+### Order → OrderItems (One-to-Many)
+- **Relationship:** One order contains multiple order items
+- **Foreign Key:** `order_items.orderId` references `orders.id`
+- **Cardinality:** 1:N
+- **Delete Behavior:** Cascade (deleting order deletes all order items)
+
+### Product → OrderItems (One-to-Many)
+- **Relationship:** One product can appear in multiple order items
+- **Foreign Key:** `order_items.productId` references `products.id`
+- **Cardinality:** 1:N
+- **Delete Behavior:** Restrict (cannot delete product referenced in orders)
+
+## Indexes
 
 ### Users Table
-
 ```sql
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) NOT NULL UNIQUE,
-  password VARCHAR(255) NOT NULL,
-  first_name VARCHAR(100),
-  last_name VARCHAR(100),
-  role VARCHAR(50) DEFAULT 'USER', -- USER, ADMIN
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Indexes
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 ```
 
 ### Products Table
-
 ```sql
-CREATE TABLE products (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  price DECIMAL(10, 2) NOT NULL,
-  stock INT NOT NULL DEFAULT 0,
-  sku VARCHAR(100) UNIQUE,
-  category VARCHAR(100),
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Indexes
 CREATE INDEX idx_products_name ON products(name);
-CREATE INDEX idx_products_category ON products(category);
-CREATE INDEX idx_products_active ON products(is_active);
+CREATE INDEX idx_products_isActive ON products(isActive);
+CREATE INDEX idx_products_price ON products(price);
 ```
 
 ### Orders Table
-
 ```sql
-CREATE TABLE orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  total DECIMAL(10, 2) NOT NULL,
-  status VARCHAR(50) DEFAULT 'PENDING', -- PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Indexes
-CREATE INDEX idx_orders_user_id ON orders(user_id);
+CREATE INDEX idx_orders_userId ON orders(userId);
 CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_created_at ON orders(created_at);
+CREATE INDEX idx_orders_createdAt ON orders(createdAt DESC);
 ```
 
 ### OrderItems Table
-
 ```sql
-CREATE TABLE order_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
-  quantity INT NOT NULL,
-  price DECIMAL(10, 2) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+CREATE INDEX idx_orderitems_orderId ON order_items(orderId);
+CREATE INDEX idx_orderitems_productId ON order_items(productId);
+```
 
--- Indexes
-CREATE INDEX idx_order_items_order_id ON order_items(order_id);
-CREATE INDEX idx_order_items_product_id ON order_items(product_id);
+## Data Types Explained
+
+### UUID (Universally Unique Identifier)
+- Used for all primary keys
+- Benefits:
+  - Globally unique across tables and databases
+  - Better for distributed systems
+  - Prevents enumeration attacks
+  - No auto-increment collisions
+
+### DECIMAL(10,2)
+- Used for monetary values (price, total, subtotal)
+- 10 total digits, 2 after decimal point
+- Prevents floating-point arithmetic errors
+- Example: 99999999.99
+
+### ENUM
+- Used for fixed set of values
+- **UserRole:** USER, ADMIN
+- **OrderStatus:** PENDING, PROCESSING, COMPLETED, CANCELLED
+- Database-level constraint
+- Type-safe in TypeScript
+
+### TIMESTAMP
+- Stores date and time with timezone
+- Automatically managed by TypeORM
+- `createdAt`: Set once on insert
+- `updatedAt`: Updated on every modification
+
+## Business Rules
+
+### User
+1. Email must be unique across all users
+2. Password must be hashed before storage (bcrypt with 10 rounds)
+3. Role defaults to 'USER' on registration
+4. Cannot be deleted if has existing orders
+
+### Product
+5. Price must be greater than or equal to 0
+6. Stock must be greater than or equal to 0
+7. Soft delete using `isActive` flag (prevents data loss)
+8. `updatedAt` timestamp tracks last modification
+
+### Order
+9. Total is calculated as sum of all order items subtotals
+10. Status starts as 'PENDING'
+11. Cannot be deleted (business requirement for audit trail)
+12. Each order belongs to exactly one user
+
+### OrderItem
+13. Price is a snapshot at time of order (preserves historical pricing)
+14. Subtotal = price × quantity
+15. Quantity must be greater than 0
+16. When order is placed, product stock is reduced
+17. Cascade delete with parent order
+
+## Sample Data
+
+### Users
+```sql
+INSERT INTO users (id, email, password, firstName, lastName, role, createdAt)
+VALUES 
+  ('550e8400-e29b-41d4-a716-446655440000', 
+   'admin@dragon.com', 
+   '$2b$10$hashed_password', 
+   'Admin', 
+   'User', 
+   'ADMIN', 
+   NOW());
+```
+
+### Products
+```sql
+INSERT INTO products (id, name, description, price, stock, isActive, createdAt, updatedAt)
+VALUES 
+  ('650e8400-e29b-41d4-a716-446655440001',
+   'Dragon Sword',
+   'A legendary sword forged by dragons',
+   299.99,
+   10,
+   TRUE,
+   NOW(),
+   NOW());
+```
+
+### Orders
+```sql
+INSERT INTO orders (id, userId, total, status, createdAt)
+VALUES 
+  ('750e8400-e29b-41d4-a716-446655440002',
+   '550e8400-e29b-41d4-a716-446655440000',
+   599.98,
+   'COMPLETED',
+   NOW());
+```
+
+### OrderItems
+```sql
+INSERT INTO order_items (id, orderId, productId, quantity, price, subtotal)
+VALUES 
+  ('850e8400-e29b-41d4-a716-446655440003',
+   '750e8400-e29b-41d4-a716-446655440002',
+   '650e8400-e29b-41d4-a716-446655440001',
+   2,
+   299.99,
+   599.98);
+```
+
+## Database Normalization
+
+This schema follows **Third Normal Form (3NF)**:
+
+### First Normal Form (1NF)
+✅ All columns contain atomic values
+✅ Each row is unique (UUID primary keys)
+✅ No repeating groups
+
+### Second Normal Form (2NF)
+✅ All non-key attributes depend on the entire primary key
+✅ No partial dependencies
+
+### Third Normal Form (3NF)
+✅ No transitive dependencies
+✅ All attributes depend only on the primary key
+
+## Query Performance Considerations
+
+### Optimized Queries
+1. **Get user's orders with items:**
+   - Uses indexes on `orders.userId` and `order_items.orderId`
+   - Eager loading prevents N+1 queries
+
+2. **Search products:**
+   - Index on `products.name` for LIKE queries
+   - Index on `products.isActive` for filtering
+
+3. **Order history:**
+   - Index on `orders.createdAt DESC` for chronological sorting
+   - Composite index possible for userId + createdAt
+
+### TypeORM Relations
+```typescript
+// Efficient eager loading
+{
+  relations: ['items', 'items.product', 'user']
+}
+```
+
+## Migration Strategy
+
+TypeORM handles migrations automatically with `synchronize: true` in development.
+
+For production:
+```bash
+npm run migration:generate -- -n CreateInitialSchema
+npm run migration:run
+```
+
+## Backup Strategy
+
+### Recommended Approach
+1. Daily automated backups
+2. Point-in-time recovery enabled
+3. Backup retention: 30 days
+4. Test restore procedure monthly
+
+```bash
+# Backup command
+pg_dump -U dragon_user -d dragon_db > backup_$(date +%Y%m%d).sql
+
+# Restore command
+psql -U dragon_user -d dragon_db < backup_20250103.sql
+```
+
+## Scaling Considerations
+
+### Read Replicas
+- Separate read/write connections
+- Read-heavy queries to replicas
+- Master for writes only
+
+### Partitioning
+- Orders table can be partitioned by date
+- Improves query performance for historical data
+
+### Connection Pooling
+```typescript
+// TypeORM config
+{
+  extra: {
+    max: 20,           // Maximum pool size
+    min: 5,            // Minimum pool size
+    idleTimeoutMillis: 30000
+  }
+}
 ```
 
 ---
 
-## 🔑 Key Relationships
-
-### One-to-Many (Users → Orders)
-- One user can have multiple orders
-- Foreign key: `orders.user_id` references `users.id`
-- Cascade delete: Orders are deleted when user is deleted
-
-### Many-to-Many (Products ← OrderItems → Orders)
-- Products and Orders are related through OrderItems
-- Prevents data duplication and provides order history tracking
-- Price is stored in OrderItems to preserve historical pricing
-
----
-
-## 📈 Indexing Strategy
-
-| Table | Column | Type | Reason |
-|-------|--------|------|--------|
-| users | email | UNIQUE | Fast login lookups |
-| users | role | INDEX | Query filtering by role |
-| products | name | INDEX | Product search |
-| products | category | INDEX | Browse by category |
-| products | is_active | INDEX | Filter active products |
-| orders | user_id | INDEX | User order history |
-| orders | status | INDEX | Query by order status |
-| orders | created_at | INDEX | Sort by creation date |
-| order_items | order_id | INDEX | Retrieve order items |
-| order_items | product_id | INDEX | Product in order lookups |
-
----
-
-## 🔐 Data Integrity Constraints
-
-1. **NOT NULL Constraints**: Essential fields (email, password, name, price, stock)
-2. **UNIQUE Constraints**: Email on Users, SKU on Products
-3. **FOREIGN KEY Constraints**: Maintain referential integrity
-4. **CASCADE DELETE**: Automatically clean up related data
-5. **DEFAULT Values**: Status defaults, timestamps auto-set
-
----
-
-## 🎯 Normalization
-
-- **3NF Applied**: Entities are in third normal form
-- **No Redundant Data**: Relationships properly separated
-- **Atomic Values**: All fields contain single values
-- **Historical Data**: OrderItems preserve pricing history
-
----
-
-## 📝 Migration Strategy
-
-Migrations are handled using NestJS + TypeORM with the following conventions:
-- Timestamp-based migration names
-- Up/Down migration support
-- Automatic seed data for testing
+**Database Version:** PostgreSQL 15
+**ORM:** TypeORM 0.3.x
+**Last Updated:** January 2026

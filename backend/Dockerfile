@@ -29,7 +29,7 @@ EXPOSE 3001
 CMD ["npm", "run", "start:dev"]
 
 # Stage 3: Production
-FROM node:18-alpine
+FROM node:18-alpine AS production
 
 WORKDIR /app
 

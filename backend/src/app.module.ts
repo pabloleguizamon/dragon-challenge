@@ -1,38 +1,41 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { join } from 'path';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { ProductsModule } from './products/products.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
     }),
-    TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('DATABASE_HOST', 'localhost'),
-        port: configService.get('DATABASE_PORT', 5432),
-        database: configService.get('DATABASE_NAME', 'dragon_db'),
-        username: configService.get('DATABASE_USER', 'dragon_user'),
-        password: configService.get('DATABASE_PASSWORD', 'dragon_password'),
-        entities: [join(__dirname, '**', '*.entity.{ts,js}')],
-        synchronize: configService.get('NODE_ENV') === 'development',
-        logging: configService.get('NODE_ENV') === 'development',
-      }),
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DATABASE_HOST || 'localhost',
+      port: parseInt(process.env.DATABASE_PORT || '5432'),
+      username: process.env.DATABASE_USER || 'dragon_user',
+      password: process.env.DATABASE_PASSWORD || 'dragon_password',
+      database: process.env.DATABASE_NAME || 'dragon_db',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      synchronize: true,
+      logging: true,
     }),
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
-      autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+      autoSchemaFile: 'src/schema.gql',
       playground: true,
       context: ({ req }: any) => ({ req }),
     }),
+    UsersModule,
+    AuthModule,
+    ProductsModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

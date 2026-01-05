@@ -1,0 +1,124 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type User {
+  id: ID!
+  email: String!
+  firstName: String
+  lastName: String
+  role: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type AuthPayload {
+  accessToken: String!
+  user: User!
+}
+
+type Product {
+  id: ID!
+  name: String!
+  description: String!
+  price: Float!
+  stock: Float!
+  imageUrl: String
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type OrderItem {
+  id: ID!
+  product: Product!
+  quantity: Int!
+  price: Float!
+  subtotal: Float!
+}
+
+type Order {
+  id: ID!
+  user: User!
+  items: [OrderItem!]!
+  total: Float!
+  status: OrderStatus!
+  createdAt: DateTime!
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+type Query {
+  users: [User!]!
+  user(id: String!): User!
+  hello: String!
+  products: [Product!]!
+  product(id: String!): Product!
+  searchProducts(searchTerm: String!): [Product!]!
+  orders: [Order!]!
+  myOrders: [Order!]!
+  ordersByUser(userId: String!): [Order!]!
+  order(id: String!): Order!
+}
+
+type Mutation {
+  login(loginInput: LoginInput!): AuthPayload!
+  register(registerInput: RegisterInput!): AuthPayload!
+  createProduct(createProductInput: CreateProductInput!): Product!
+  updateProduct(id: String!, updateProductInput: UpdateProductInput!): Product!
+  deleteProduct(id: String!): Product!
+  createOrder(createOrderInput: CreateOrderInput!): Order!
+  updateOrderStatus(id: String!, updateOrderStatusInput: UpdateOrderStatusInput!): Order!
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+input RegisterInput {
+  email: String!
+  password: String!
+  firstName: String
+  lastName: String
+}
+
+input CreateProductInput {
+  name: String!
+  description: String!
+  price: Float!
+  stock: Float! = 0
+  imageUrl: String
+}
+
+input UpdateProductInput {
+  name: String
+  description: String
+  price: Float
+  stock: Float
+  imageUrl: String
+  isActive: Boolean
+}
+
+input CreateOrderInput {
+  items: [OrderItemInput!]!
+}
+
+input OrderItemInput {
+  productId: String!
+  quantity: Int!
+}
+
+input UpdateOrderStatusInput {
+  status: OrderStatus!
+}
